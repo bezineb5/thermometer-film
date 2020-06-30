@@ -1,0 +1,13 @@
+[Unit]
+Description=thermometer-webapp
+
+[Service]
+ExecStart=python3 /home/pi/thermometer-film/web.py
+WorkingDirectory=/home/pi/thermometer-film
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+User=pi
+
+[Install]
+WantedBy=multi-user.target

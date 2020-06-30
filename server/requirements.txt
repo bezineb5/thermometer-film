@@ -1,0 +1,10 @@
+adafruit-circuitpython-ads1x15
+adafruit-circuitpython-si7021
+adafruit-circuitpython-ssd1306
+
+pyzbar
+pillow
+picamera
+
+flask
+flask-socketio

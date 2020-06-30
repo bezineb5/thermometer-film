@@ -1,0 +1,13 @@
+[Unit]
+Description=thermometer
+
+[Service]
+ExecStart=python3 /home/pi/thermometer-film/thermometer.py --ads1015 --si7021 --ds18b20
+WorkingDirectory=/home/pi/thermometer-film
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+User=pi
+
+[Install]
+WantedBy=multi-user.target
