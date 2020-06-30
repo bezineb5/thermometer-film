@@ -1,0 +1,24 @@
+<mat-card class="example-card">
+  <mat-card-header>
+    <mat-card-title>{{formatDuration(development.duration)}}</mat-card-title>
+    <mat-card-subtitle>{{development.film.brand}} {{development.film.film_type}} ({{development.film.dx_number}})</mat-card-subtitle>
+  </mat-card-header>
+  <input
+  type="file"
+  #imageFile
+  style="display: none"
+  (change)="onFileScan($event)"
+/>
+  <mat-card-actions>
+    <!--<button mat-button>Select film</button>-->
+    <button mat-button (click)="startScanDXBarcode()">Scan DX barcode</button>
+  </mat-card-actions>
+</mat-card>
+
+<mat-list>
+  <mat-list-item *ngFor="let temp of temperatures">
+    <mat-icon mat-list-icon>{{mapIcon(temp.id)}}</mat-icon>
+    <div mat-line>{{temp.id}}</div>
+    <div mat-line>{{temp.temperature | number:'1.2-2'}}°C</div>
+  </mat-list-item>
+</mat-list>
