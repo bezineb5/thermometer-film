@@ -162,7 +162,7 @@ def main():
     water_sensor = ds18b20.init_ds18b20()
 
     # Web server
-    app.run(host='0.0.0.0', port=args.port)
+    socketio.run(app, host='0.0.0.0', port=args.port)
 
 
 if __name__ == "__main__":
