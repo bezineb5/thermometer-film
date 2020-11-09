@@ -1,8 +1,11 @@
 import csv
 import re
+import logging
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Callable, Dict, List, Optional
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -71,7 +74,11 @@ def _evaluator(temperatures: List[float], durations: List[timedelta]) -> Callabl
         for t, d in temp_durations[1:]:
             if last_t <= temperature and temperature < t:
                 # We're there
-                return ((temperature - last_t) * d + (t - temperature) * last_d) / (t - last_t)
+                # Convert to seconds, as timedelta only seem to support integer mutiplications
+                last_secs = last_d.total_seconds()
+                secs = d.total_seconds()
+                weighted = ((temperature - last_t) * secs + (t - temperature) * last_secs) / (t - last_t)
+                return timedelta(seconds=weighted)
             last_t = t
             last_d = d
         

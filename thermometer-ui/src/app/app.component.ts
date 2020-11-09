@@ -54,7 +54,7 @@ export class AppComponent {
   }
 
   formatDuration(duration: number): string {
-    const minutes = Math.round(duration / 60);
+    const minutes = Math.floor(duration / 60);
     const seconds = Math.round(duration % 60);
     return "" + minutes + ":" + String(seconds).padStart(2, '0');
   }
