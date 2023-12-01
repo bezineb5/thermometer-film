@@ -67,18 +67,18 @@
         "serve": {
           "builder": "@angular-devkit/build-angular:dev-server",
           "options": {
-            "browserTarget": "thermometer-ui:build"
+            "buildTarget": "thermometer-ui:build"
           },
           "configurations": {
             "production": {
-              "browserTarget": "thermometer-ui:build:production"
+              "buildTarget": "thermometer-ui:build:production"
             }
           }
         },
         "extract-i18n": {
           "builder": "@angular-devkit/build-angular:extract-i18n",
           "options": {
-            "browserTarget": "thermometer-ui:build"
+            "buildTarget": "thermometer-ui:build"
           }
         },
         "test": {
