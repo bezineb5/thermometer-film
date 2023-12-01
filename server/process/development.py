@@ -17,33 +17,36 @@ class FilmDetails:
 
     def __str__(self) -> str:
         return f"{self.brand} {self.film_type}"
-    
+
     def development_time(self, temp: float) -> timedelta:
         return self.evaluator(temp)
 
 
-def _read_films(csv_filename: str, durations_map: Dict[str, Callable[[float], timedelta]]):
-    with open(csv_filename, newline='') as csv_file:
+def _read_films(
+    csv_filename: str, durations_map: Dict[str, Callable[[float], timedelta]]
+):
+    with open(csv_filename, newline="") as csv_file:
         reader = csv.DictReader(csv_file)
         for row in reader:
-            brand = row['Brand']
-            film_type = row['Film Type']
-            dx_number = row['DX Number']
-            chart_letter = row['Chart Letter']
+            brand = row["Brand"]
+            film_type = row["Film Type"]
+            dx_number = row["DX Number"]
+            chart_letter = row["Chart Letter"]
             evaluator = durations_map[chart_letter]
 
             yield FilmDetails(
                 brand=brand,
                 film_type=film_type,
                 dx_number=dx_number,
-                evaluator=evaluator)
+                evaluator=evaluator,
+            )
 
 
 def _parse_temperatures_header(header_row) -> List[float]:
-    if header_row[0] != 'Chart Letter':
+    if header_row[0] != "Chart Letter":
         raise Exception("Expected: Chart Letter")
 
-    temp_re = re.compile('^([+-]?\\d*[.,]?\\d*)°C$')
+    temp_re = re.compile("^([+-]?\\d*[.,]?\\d*)°C$")
 
     def parse_temp(temp: str) -> float:
         result = temp_re.match(temp)
@@ -55,13 +58,15 @@ def _parse_temperatures_header(header_row) -> List[float]:
 
 
 def _parse_duration(d: str) -> timedelta:
-    splitted = d.split(':')
+    splitted = d.split(":")
     if len(splitted) != 2:
         raise Exception("Unable to parse duration: " + d)
     return timedelta(minutes=int(splitted[0]), seconds=int(splitted[1]))
 
 
-def _evaluator(temperatures: List[float], durations: List[timedelta]) -> Callable[[float], timedelta]:
+def _evaluator(
+    temperatures: List[float], durations: List[timedelta]
+) -> Callable[[float], timedelta]:
     temp_durations = list(zip(temperatures, durations))
 
     def eval(temperature: float) -> timedelta:
@@ -77,11 +82,13 @@ def _evaluator(temperatures: List[float], durations: List[timedelta]) -> Callabl
                 # Convert to seconds, as timedelta only seem to support integer mutiplications
                 last_secs = last_d.total_seconds()
                 secs = d.total_seconds()
-                weighted = ((temperature - last_t) * secs + (t - temperature) * last_secs) / (t - last_t)
+                weighted = (
+                    (temperature - last_t) * secs + (t - temperature) * last_secs
+                ) / (t - last_t)
                 return timedelta(seconds=weighted)
             last_t = t
             last_d = d
-        
+
         # Edge case: exactly at the maximum
         return temp_durations[-1][1]
 
@@ -91,7 +98,7 @@ def _evaluator(temperatures: List[float], durations: List[timedelta]) -> Callabl
 def _read_chart_letter(csv_filename: str) -> Dict[str, Callable[[float], timedelta]]:
     durations_map = {}
 
-    with open(csv_filename, newline='') as csv_file:
+    with open(csv_filename, newline="") as csv_file:
         reader = csv.reader(csv_file)
         first_line = True
         temperatures: List[float] = []
@@ -121,7 +128,7 @@ class DevelopmentTime:
             if fd.dx_number:
                 # Remove the last digit, which is the number of exposures
                 by_dx_number[fd.dx_number[:5]] = fd
-        
+
         self.by_name = by_name
         self.by_dx_number = by_dx_number
 

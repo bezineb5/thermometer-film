@@ -1,11 +1,11 @@
-adafruit-circuitpython-ads1x15
-adafruit-circuitpython-si7021
-adafruit-circuitpython-ssd1306
+adafruit-circuitpython-ads1x15==2.2.24
+adafruit-circuitpython-si7021==4.1.10
+adafruit-circuitpython-ssd1306==2.12.15
 
-pyzbar
-pillow
-picamera
+pyzbar==0.1.9
+Pillow==9.0.1
+picamera==1.13
 
-flask
-flask-socketio
-eventlet
+Flask==1.1.2
+Flask-SocketIO==4.3.2
+eventlet==0.33.3

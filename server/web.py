@@ -1,7 +1,9 @@
 import argparse
+import csv
 import json
 import logging
 import threading
+from datetime import datetime, timezone
 
 import board
 import busio
@@ -30,14 +32,14 @@ DX_NUMBER_KEY = "DX"
 DEFAULT_DX_NUMBER = "017534"
 
 
-@app.route('/')
+@app.route("/")
 def homepage():
-    return app.send_static_file('index.html')
+    return app.send_static_file("index.html")
 
 
-@app.route('/dx', methods=['GET', 'POST'])
+@app.route("/dx", methods=["GET", "POST"])
 def dx_number():
-    if request.method == 'POST':
+    if request.method == "POST":
         content = request.json
         if content:
             dx_number = content.get("dx_number")
@@ -50,25 +52,26 @@ def dx_number():
                     return return_dx_number()
                 abort(404)
         abort(403)
-    else: # GET
+    else:  # GET
         return return_dx_number()
+
 
 def return_dx_number():
     return {"dx_number": film_details.dx_number}
 
 
-@socketio.on('connect', namespace='/temperature')
+@socketio.on("connect", namespace="/temperature")
 def temperature_connect():
-    log.info('Client connected')
+    log.info("Client connected")
     global thread
     with thread_lock:
         if thread is None:
             thread = socketio.start_background_task(measure_thread)
 
 
-@socketio.on('disconnect', namespace='/temperature')
+@socketio.on("disconnect", namespace="/temperature")
 def temperature_disconnect():
-    log.info('Client disconnected')
+    log.info("Client disconnected")
 
 
 def measure_thread():
@@ -77,43 +80,71 @@ def measure_thread():
         "water": water_sensor,
     }
 
-    while True:
-        try:
-            measurements = {name: handler() for name, handler in temperature_sensors.items()}
-            water_temp = measurements.get("water")
-            air_temp = measurements.get("air")
-            payload = {
-                'temperatures': [
-                    { 'id': 'water', 'temperature': water_temp},
-                    { 'id': 'air', 'temperature': air_temp},
-                ],
-            }
+    # Log file
+    with open(
+        f"temperature_{datetime.now(timezone.utc).strftime('%Y-%m-%d_%H%M%S')}.csv",
+        "w",
+        newline="",
+        encoding="utf-8",
+    ) as f:
+        fieldnames = ["time", "air", "water"]
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
 
-            if water_temp is not None and film_details:
-                duration_seconds = film_details.development_time(water_temp).total_seconds()
-                payload['development'] = {
-                    'duration': duration_seconds,
-                    'film': {
-                        'brand': film_details.brand,
-                        'film_type': film_details.film_type,
-                        'dx_number': film_details.dx_number,
-                    },
+        while True:
+            try:
+                measurements = {
+                    name: handler() for name, handler in temperature_sensors.items()
+                }
+                water_temp = measurements.get("water")
+                air_temp = measurements.get("air")
+                payload = {
+                    "temperatures": [
+                        {"id": "water", "temperature": water_temp},
+                        {"id": "air", "temperature": air_temp},
+                    ],
                 }
 
-            socketio.emit("measure", payload, namespace='/temperature')
-        except:
-            log.exception("Unable to read sensors")
+                if water_temp is not None and film_details:
+                    try:
+                        duration_seconds = film_details.development_time(
+                            water_temp
+                        ).total_seconds()
+                    except Exception as e:
+                        log.error("Error calculating development time: %s", e)
+                        duration_seconds = -1
+                    payload["development"] = {
+                        "duration": duration_seconds,
+                        "film": {
+                            "brand": film_details.brand,
+                            "film_type": film_details.film_type,
+                            "dx_number": film_details.dx_number,
+                        },
+                    }
 
-        socketio.sleep(1.0)
+                # Log to CSV
+                csv_payload = {
+                    "time": datetime.now(timezone.utc),
+                    "air": air_temp,
+                    "water": water_temp,
+                }
+                writer.writerow(csv_payload)
+                f.flush()
+
+                socketio.emit("measure", payload, namespace="/temperature")
+            except:
+                log.exception("Unable to read sensors")
+
+            socketio.sleep(1.0)
 
 
 def _parse_arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description='Film development thermometer webapp')
+    parser = argparse.ArgumentParser(description="Film development thermometer webapp")
 
-    parser.add_argument('--verbose', '-v', action='store_true',
-                        help='Verbose mode')
-    parser.add_argument('--port', default='5000', type=int, help='Server port to listen to')
+    parser.add_argument("--verbose", "-v", action="store_true", help="Verbose mode")
+    parser.add_argument(
+        "--port", default="5000", type=int, help="Server port to listen to"
+    )
 
     return parser.parse_args()
 
@@ -122,7 +153,7 @@ def _get_last_dx_number(default: str) -> str:
     value = default
 
     try:
-        with open(CONFIGURATION_FILE, 'r') as f:
+        with open(CONFIGURATION_FILE, "r", encoding="utf-8") as f:
             config = json.load(f)
             if config:
                 value = config.get(DX_NUMBER_KEY, default)
@@ -130,12 +161,10 @@ def _get_last_dx_number(default: str) -> str:
         return value
 
 
-def _save_last_dx_number(dx_number: str):
+def _save_last_dx_number(last_dx_number: str):
     try:
-        with open(CONFIGURATION_FILE, 'w') as f:
-            data = {
-                DX_NUMBER_KEY: dx_number
-            }
+        with open(CONFIGURATION_FILE, "w", encoding="utf-8") as f:
+            data = {DX_NUMBER_KEY: last_dx_number}
             json.dump(data, f)
     finally:
         pass
@@ -162,7 +191,7 @@ def main():
     water_sensor = ds18b20.init_ds18b20()
 
     # Web server
-    socketio.run(app, host='0.0.0.0', port=args.port)
+    socketio.run(app, host="0.0.0.0", port=args.port)
 
 
 if __name__ == "__main__":

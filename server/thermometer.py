@@ -46,13 +46,13 @@ def main():
     # Initialize the temperature sensors
     temperature_sensors = OrderedDict()
     if args.ads1015:
-        temperature_sensors['ADS1015'] = analog.init_ads1015(i2c)
+        temperature_sensors["ADS1015"] = analog.init_ads1015(i2c)
     if args.ads1115:
-        temperature_sensors['ADS1115'] = analog.init_ads1115(i2c)
+        temperature_sensors["ADS1115"] = analog.init_ads1115(i2c)
     if args.si7021:
-        temperature_sensors['Si7021'] = si7021.init_si7021(i2c)
+        temperature_sensors["Si7021"] = si7021.init_si7021(i2c)
     if args.ds18b20:
-        temperature_sensors['DS18B20'] = ds18b20.init_ds18b20()
+        temperature_sensors["DS18B20"] = ds18b20.init_ds18b20()
 
     dev_time_db = development.DevelopmentTime("./films.csv", "./chart_letters.csv")
     film_details = dev_time_db.for_dx_number(DX_NUMBER)
@@ -68,7 +68,11 @@ def main():
                 temp = handler()
                 duration = film_details.development_time(temp)
                 measurements[name] = (temp, duration)
-                print("{}\t{:>5.3f}\t{}".format(name, temp, _timedelta_to_string(duration)))
+                print(
+                    "{}\t{:>5.3f}\t{}".format(
+                        name, temp, _timedelta_to_string(duration)
+                    )
+                )
             except:
                 print("Unable to read sensor: {}".format(name))
 
@@ -79,11 +83,10 @@ def main():
 
 def init_screen(spi: busio.SPI) -> adafruit_ssd1306.SSD1306_SPI:
     reset_pin = digitalio.DigitalInOut(board.D27)  # any pin!
-    cs_pin = digitalio.DigitalInOut(board.D22)    # any pin!
-    dc_pin = digitalio.DigitalInOut(board.D17)    # any pin!
+    cs_pin = digitalio.DigitalInOut(board.D22)  # any pin!
+    dc_pin = digitalio.DigitalInOut(board.D17)  # any pin!
 
-    oled = adafruit_ssd1306.SSD1306_SPI(
-        128, 64, spi, dc_pin, reset_pin, cs_pin)
+    oled = adafruit_ssd1306.SSD1306_SPI(128, 64, spi, dc_pin, reset_pin, cs_pin)
 
     # Clear display.
     oled.fill(0)
@@ -98,9 +101,20 @@ def get_font():
     return ImageFont.load_default()
 
 
-def display_temperatures(oled: adafruit_ssd1306.SSD1306_SPI, temperatures: Dict[str, Tuple[float, timedelta]], film_type: str) -> None:
+def display_temperatures(
+    oled: adafruit_ssd1306.SSD1306_SPI,
+    temperatures: Dict[str, Tuple[float, timedelta]],
+    film_type: str,
+) -> None:
     # Prepare text
-    text = '\n'.join(["{}:\t{:>5.3f}ºC > {}".format(name[:3], temp, _timedelta_to_string(duration)) for name, (temp, duration) in temperatures.items()])
+    text = "\n".join(
+        [
+            "{}:\t{:>5.3f}ºC > {}".format(
+                name[:3], temp, _timedelta_to_string(duration)
+            )
+            for name, (temp, duration) in temperatures.items()
+        ]
+    )
     text = "Film type: " + film_type + "\n" + text
 
     # Create blank image for drawing.
@@ -126,6 +140,7 @@ def display_temperatures(oled: adafruit_ssd1306.SSD1306_SPI, temperatures: Dict[
     oled.image(image)
     oled.show()
 
+
 def init_barcode_scanner():
     camera = PiCamera()
     camera.resolution = (2592, 1944)
@@ -133,7 +148,7 @@ def init_barcode_scanner():
 
     def scan():
         stream = BytesIO()
-        camera.capture(stream, format='jpeg')
+        camera.capture(stream, format="jpeg")
         # "Rewind" the stream to the beginning so we can read its content
         stream.seek(0)
         image = Image.open(stream)
@@ -141,20 +156,20 @@ def init_barcode_scanner():
         barcodes = pyzbar.decode(image)
         print(barcodes)
         if barcodes:
-            return str(barcodes[0].data.decode('ascii'))
-    
+            return str(barcodes[0].data.decode("ascii"))
+
     return scan
 
-def _parse_arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description='Thermometer')
 
-    parser.add_argument('--verbose', '-v', action='store_true',
-                        help='Verbose mode')
-    parser.add_argument('--ads1115', action='store_true', help='VMA320 on ADS1115')
-    parser.add_argument('--ads1015', action='store_true', help='VMA320 on ADS1015')
-    parser.add_argument('--si7021', action='store_true', help='Si7021')
-    parser.add_argument('--ds18b20', action='store_true', help='DS18B20')
-    parser.add_argument('--barcode', action='store_true', help='Enable barcode scanner')
+def _parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Thermometer")
+
+    parser.add_argument("--verbose", "-v", action="store_true", help="Verbose mode")
+    parser.add_argument("--ads1115", action="store_true", help="VMA320 on ADS1115")
+    parser.add_argument("--ads1015", action="store_true", help="VMA320 on ADS1015")
+    parser.add_argument("--si7021", action="store_true", help="Si7021")
+    parser.add_argument("--ds18b20", action="store_true", help="DS18B20")
+    parser.add_argument("--barcode", action="store_true", help="Enable barcode scanner")
     return parser.parse_args()
 
 
@@ -163,6 +178,7 @@ def _timedelta_to_string(td: timedelta) -> str:
 
     # Formatted only for hours and minutes as requested
     return f"{minutes:2}:{seconds:02}"
+
 
 if __name__ == "__main__":
     main()
