@@ -1,4 +1,4 @@
 adafruit-circuitpython-ads1x15==2.2.24
 adafruit-circuitpython-si7021==4.1.10
 
-Flask==2.2.5
+Flask==3.0.0
