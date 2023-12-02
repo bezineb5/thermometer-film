@@ -1,7 +1,9 @@
+"""DS18B20 temperature sensor module"""
 import glob
 
 
 def init_ds18b20():
+    """Initialize the DS18B20 temperature sensor."""
     base_dir = "/sys/bus/w1/devices/"
     device_folder = glob.glob(base_dir + "28*")[0]
     device_file = device_folder + "/w1_slave"
@@ -20,7 +22,6 @@ def init_ds18b20():
                 temp_string = lines[1][equals_pos + 2 :]
                 temp_c = float(temp_string) / 1000.0
                 return temp_c
-            else:
-                raise ValueError("DS18B20 did not provide temperature")
+            raise ValueError(f"DS18B20 did not provide temperature: {lines[1]}")
 
     return read_temp

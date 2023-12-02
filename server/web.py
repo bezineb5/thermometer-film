@@ -2,9 +2,9 @@ import argparse
 import csv
 import json
 import logging
-import queue
 import time
 import threading
+import pathlib
 from datetime import datetime, timezone
 from typing import Dict, Optional
 
@@ -13,82 +13,24 @@ import busio
 
 from flask import Flask, request, abort, Response
 
-# from flask_socketio import SocketIO
-
 from sensors import si7021, ds18b20
 from process import development
+from utils.atomic import AtomicThreadLocalQueuesList, AtomicRef
+
+CONFIGURATION_FILE = "./config.json"
+MEASURE_LOG_DIR = "./measurements"
+DX_NUMBER_KEY = "DX"
+DEFAULT_DX_NUMBER = "017534"
+INTERVAL_BETWEEN_MEASUREMENTS_SECONDS = 1.0
 
 log = logging.getLogger(__name__)
 app = Flask(__name__)
-# socketio = SocketIO(app)
-
-# thread = None
-# thread_lock = threading.Lock()
-
-# air_sensor = None
-# water_sensor = None
-
-
-class AtomicThreadLocalQueuesList:
-    """A thread-safe list of thread-local queues."""
-
-    def __init__(self):
-        self._list = []
-        self._thread_local_queue = threading.local()
-        self._lock = threading.Lock()
-
-    def __enter__(self):
-        return self.acquire()
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.release()
-
-    def acquire(self) -> queue.SimpleQueue:
-        new_queue: queue.SimpleQueue = queue.SimpleQueue()
-        self._thread_local_queue.queue = new_queue
-        with self._lock:
-            self._list.append(new_queue)
-        return new_queue
-
-    def release(self):
-        with self._lock:
-            self._list.remove(self._thread_local_queue.queue)
-        del self._thread_local_queue.queue
-
-    def is_empty(self) -> bool:
-        with self._lock:
-            return len(self._list) == 0
-
-    def broadcast(self, payload):
-        with self._lock:
-            for q in self._list:
-                q.put(payload)
-
-
-class AtomicRef:
-    def __init__(self, value=None):
-        self._value = value
-        self._lock = threading.Lock()
-
-    def get(self):
-        with self._lock:
-            return self._value
-
-    def set(self, value):
-        with self._lock:
-            self._value = value
-
 
 subscribers = AtomicThreadLocalQueuesList()
 is_stopping = threading.Event()
 
 dev_time_db: Optional[development.DevelopmentTime] = None
 film_details = AtomicRef()
-
-CONFIGURATION_FILE = "./config.json"
-DX_NUMBER_KEY = "DX"
-DEFAULT_DX_NUMBER = "017534"
-INTERVAL_BETWEEN_MEASUREMENTS_SECONDS = 1.0
 
 
 @app.route("/")
@@ -125,8 +67,7 @@ def _return_dx_number() -> Dict[str, Optional[str]]:
     return {"dx_number": dx_number}
 
 
-def event_stream():
-    """Serve the sensors event stream."""
+def _event_stream():
     log.info("Client connected")
 
     with subscribers as q:
@@ -141,7 +82,8 @@ def event_stream():
 
 @app.route("/stream")
 def stream():
-    response = Response(event_stream(), mimetype="text/event-stream")
+    """Endpoint for the Server-Sent Events (SSE) stream of temperature measurements."""
+    response = Response(_event_stream(), mimetype="text/event-stream")
     response.headers["Access-Control-Allow-Origin"] = "*"
     return response
 
@@ -152,9 +94,16 @@ def _measure_thread(air_sensor, water_sensor):
         "water": water_sensor,
     }
 
-    # Log file
+    # Measurements log file
+    log_dir = pathlib.Path(MEASURE_LOG_DIR)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = (
+        log_dir
+        / f"temperature_{datetime.now(timezone.utc).strftime('%Y-%m-%d_%H%M%S')}.csv"
+    )
+
     with open(
-        f"temperature_{datetime.now(timezone.utc).strftime('%Y-%m-%d_%H%M%S')}.csv",
+        log_file,
         "w",
         newline="",
         encoding="utf-8",
@@ -181,13 +130,19 @@ def _measure_thread(air_sensor, water_sensor):
                 water_temp = measurements.get("water")
                 details = film_details.get()
                 if water_temp is not None and details:
+                    error = None
                     try:
                         duration_seconds = details.development_time(
                             water_temp
                         ).total_seconds()
+                    except development.UserError as e:
+                        log.info("Unable to calculate development time: %s", e)
+                        duration_seconds = -1
+                        error = str(e)
                     except Exception as e:
                         log.error("Error calculating development time: %s", e)
                         duration_seconds = -1
+                        error = "Internal error"
                     payload["development"] = {
                         "duration": duration_seconds,
                         "film": {
@@ -196,6 +151,8 @@ def _measure_thread(air_sensor, water_sensor):
                             "dx_number": details.dx_number,
                         },
                     }
+                    if error:
+                        payload["development"]["error"] = error
 
                 # Show in the UI
                 subscribers.broadcast(payload)
@@ -280,7 +237,6 @@ def main():
 
     # Web server
     app.run(host="0.0.0.0", port=args.port, threaded=True)
-    # socketio.run(app, host="0.0.0.0", port=args.port)
 
     is_stopping.set()
 

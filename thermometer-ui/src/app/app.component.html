@@ -1,14 +1,14 @@
 <mat-card appearance="outlined" class="film-card">
   <mat-card-header>
-    <mat-card-title>{{formatDuration(development.duration)}}</mat-card-title>
-    <mat-card-subtitle>{{development.film.brand}} {{development.film.film_type}} ({{development.film.dx_number}})</mat-card-subtitle>
+    @if (development.error !== undefined && development.error !== null) {
+    <mat-card-title><mat-icon>error</mat-icon><span>{{development.error}}</span></mat-card-title>
+    } @else {
+    <mat-card-title>{{development.duration | duration}}</mat-card-title>
+    }
+    <mat-card-subtitle>{{development.film.brand}} {{development.film.film_type}}
+      ({{development.film.dx_number}})</mat-card-subtitle>
   </mat-card-header>
-  <input
-  type="file"
-  #imageFile
-  style="display: none"
-  (change)="onFileScan($event)"
-/>
+  <input type="file" #imageFile style="display: none" (change)="onFileScan($event)" />
   <mat-card-actions>
     <button mat-button (click)="startScanDXBarcode()">Scan DX barcode</button>
   </mat-card-actions>
@@ -16,14 +16,14 @@
 
 <mat-list>
   @for (temp of temperatures; track temp) {
-    <mat-list-item>
-      @if (temp.id === "air") {
-        <mat-icon matListItemIcon>house</mat-icon>
-      } @else if (temp.id === "water") {
-        <mat-icon matListItemIcon>pool</mat-icon>
-      }
-      <div matListItemTitle>{{temp.id}}</div>
-      <div matListItemLine>{{temp.temperature | number:'1.2-2'}}°C</div>
-    </mat-list-item>
+  <mat-list-item>
+    @if (temp.id === "air") {
+    <mat-icon matListItemIcon>house</mat-icon>
+    } @else if (temp.id === "water") {
+    <mat-icon matListItemIcon>pool</mat-icon>
+    }
+    <div matListItemTitle>{{temp.id}}</div>
+    <div matListItemLine>{{temp.temperature | number:'1.2-2'}}°C</div>
+  </mat-list-item>
   }
 </mat-list>

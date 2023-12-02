@@ -10,7 +10,8 @@ import { NgFor, DecimalPipe } from '@angular/common';
 import { MatListModule } from '@angular/material/list';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
-import { environment } from 'src/environments/environment';
+import { environment } from '../environments/environment';
+import { DurationPipe } from './duration.pipe';
 
 interface DXNumber {
   dx_number: string;
@@ -22,12 +23,32 @@ interface ScanResult {
   };
 };
 
+interface Temperature {
+  id: string;
+  temperature: number;
+}
+
+interface Development {
+  duration: number;
+  film: {
+    brand: string;
+    film_type: string;
+    dx_number: string;
+  };
+  error?: string;
+}
+
+interface Message {
+  temperatures?: Temperature[];
+  development?: Development;
+}
+
 @Component({
   selector: 'app-root',
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.scss'],
   standalone: true,
-  imports: [MatCardModule, MatButtonModule, MatListModule, NgFor, MatIconModule, DecimalPipe]
+  imports: [MatCardModule, MatButtonModule, MatListModule, NgFor, MatIconModule, DecimalPipe, DurationPipe]
 })
 export class AppComponent implements OnInit {
   readonly notificationDurationMs = 1000;
@@ -36,7 +57,7 @@ export class AppComponent implements OnInit {
   imageFileInput: ElementRef;
 
   title = 'thermometer-ui';
-  temperatures = [{
+  temperatures: Temperature[] = [{
     'id': 'air',
     'temperature': 10.0,
   },
@@ -44,13 +65,14 @@ export class AppComponent implements OnInit {
     'id': 'water',
     'temperature': 12.44343,
   }];
-  development = {
+  development: Development = {
     'duration': 365,
     'film': {
       'brand': "My brand",
       'film_type': "My film",
       'dx_number': "012345",
     },
+    'error': undefined,
   };
   isSocketOpen: boolean = false;
 
@@ -64,6 +86,7 @@ export class AppComponent implements OnInit {
 
   private initServerSentEvents(): void {
     const sseUrl = this.getLiveStatusUrl("/stream");
+    console.log("SSE url: ", sseUrl);
     const evtSource = new EventSource(sseUrl);
 
     evtSource.onopen = (event) => {
@@ -85,7 +108,10 @@ export class AppComponent implements OnInit {
       // the UI won't be updated.
       // See: https://angular.io/guide/zone
       this.ngZone.run(() => {
-        const message = JSON.parse(event.data);
+        const message: Message = JSON.parse(event.data);
+        if (!environment.production) {
+          console.log("SSE message: ", message);
+        }
         this.onMessage(message);
       });
     };
@@ -96,8 +122,7 @@ export class AppComponent implements OnInit {
     return hostname + path;
   }
 
-  private onMessage(message: any): void {
-    console.log("SSE message: ", message);
+  private onMessage(message: Message): void {
     const newTemperatures = message['temperatures'];
     if (!newTemperatures) {
       return;
@@ -105,13 +130,12 @@ export class AppComponent implements OnInit {
     // Order by id to have consistent display
     newTemperatures.sort((a, b) => a['id'].localeCompare(b['id']));
     this.temperatures = newTemperatures;
-    this.development = message['development'];
-  }
 
-  formatDuration(duration: number): string {
-    const minutes = Math.floor(duration / 60);
-    const seconds = Math.round(duration % 60);
-    return `${minutes}:${String(seconds).padStart(2, '0')}`;
+    const newDevelopment = message['development'];
+    if (!newDevelopment) {
+      return;
+    }
+    this.development = newDevelopment;
   }
 
   onFileScan(e) {
