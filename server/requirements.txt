@@ -6,6 +6,6 @@ pyzbar==0.1.9
 Pillow==9.0.1
 picamera==1.13
 
-Flask==1.1.2
+Flask==3.0.0
 Flask-SocketIO==4.3.2
 eventlet==0.33.3

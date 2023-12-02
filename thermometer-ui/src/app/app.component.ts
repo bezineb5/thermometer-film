@@ -1,21 +1,37 @@
-import { Component, ViewChild, ElementRef } from '@angular/core';
+import { Component, ViewChild, ElementRef, NgZone } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { Socket } from 'ngx-socket-io';
 import Quagga from 'quagga';
+import { OnInit } from '@angular/core';
+import { MatIconModule } from '@angular/material/icon';
+import { NgFor, DecimalPipe } from '@angular/common';
+import { MatListModule } from '@angular/material/list';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { environment } from 'src/environments/environment';
 
 interface DXNumber {
   dx_number: string;
 }
 
+interface ScanResult {
+  codeResult: {
+    code: DXNumber;
+  };
+};
+
 @Component({
   selector: 'app-root',
   templateUrl: './app.component.html',
-  styleUrls: ['./app.component.scss']
+  styleUrls: ['./app.component.scss'],
+  standalone: true,
+  imports: [MatCardModule, MatButtonModule, MatListModule, NgFor, MatIconModule, DecimalPipe]
 })
-export class AppComponent {
+export class AppComponent implements OnInit {
+  readonly notificationDurationMs = 1000;
+
   @ViewChild('imageFile', { static: true })
   imageFileInput: ElementRef;
 
@@ -36,38 +52,66 @@ export class AppComponent {
       'dx_number': "012345",
     },
   };
+  isSocketOpen: boolean = false;
 
-  constructor(private socket: Socket, private _snackBar: MatSnackBar, private http: HttpClient) {
+  constructor(private _snackBar: MatSnackBar, private http: HttpClient, private ngZone: NgZone) {
   }
 
   ngOnInit() {
     //Called after the constructor, initializing input properties, and the first call to ngOnChanges.
-    //Add 'implements OnInit' to the class.
+    this.initServerSentEvents();
+  }
 
-    this.socket.on('connect', () => {
-      console.log("Connected");
-    });
-    this.socket.on('measure', (msg) => {
-      this.temperatures = msg['temperatures'];
-      this.development = msg['development'];
-    });
+  private initServerSentEvents(): void {
+    const sseUrl = this.getLiveStatusUrl("/stream");
+    const evtSource = new EventSource(sseUrl);
+
+    evtSource.onopen = (event) => {
+      this.ngZone.run(() => {
+        console.log("SSE opened: ", event);
+        this.isSocketOpen = true;
+      });
+    };
+    evtSource.onerror = (_event) => {
+      this.ngZone.run(() => {
+        if (this.isSocketOpen) {
+          this.showMessage("Connection lost");
+        }
+        this.isSocketOpen = false;
+      });
+    };
+    evtSource.onmessage = (event) => {
+      // We need to run the callback in the Angular zone because otherwise
+      // the UI won't be updated.
+      // See: https://angular.io/guide/zone
+      this.ngZone.run(() => {
+        const message = JSON.parse(event.data);
+        this.onMessage(message);
+      });
+    };
+  }
+
+  private getLiveStatusUrl(path: string): string {
+    const hostname = environment.hostname || "";
+    return hostname + path;
+  }
+
+  private onMessage(message: any): void {
+    console.log("SSE message: ", message);
+    const newTemperatures = message['temperatures'];
+    if (!newTemperatures) {
+      return;
+    }
+    // Order by id to have consistent display
+    newTemperatures.sort((a, b) => a['id'].localeCompare(b['id']));
+    this.temperatures = newTemperatures;
+    this.development = message['development'];
   }
 
   formatDuration(duration: number): string {
     const minutes = Math.floor(duration / 60);
     const seconds = Math.round(duration % 60);
-    return "" + minutes + ":" + String(seconds).padStart(2, '0');
-  }
-
-  mapIcon(temperatureId: string): string {
-    switch (temperatureId) {
-      case "air":
-        return "house";
-      case "water":
-        return "pool";
-      default:
-        return "";
-    }
+    return `${minutes}:${String(seconds).padStart(2, '0')}`;
   }
 
   onFileScan(e) {
@@ -84,36 +128,40 @@ export class AppComponent {
         }
       };
 
-      Quagga.decodeSingle(config, function (result) {
+      Quagga.decodeSingle(config, function (result: ScanResult) {
         if (result && 'codeResult' in result) {
           console.log("result", result.codeResult.code);
-          return self.http.post<DXNumber>("/dx", { "dx_number": result.codeResult.code })
-            .pipe(
-              catchError((error: HttpErrorResponse) => {
-                if (error.error instanceof ErrorEvent) {
-                  console.error('An error occurred:', error.error.message);
-                } else {
-                  self.showSnack('Unknown DX barcode');
-                  return throwError(
-                    'Something bad happened; please try again later.');
-                }
-              })
-            ).subscribe(dx => self.showSnack('DX code: ' + dx.dx_number)
-            );
+          self.setDxNumber(result.codeResult.code);
         } else {
-          self.showSnack('Unrecognized DX barcode');
+          self.showMessage('Unrecognized DX barcode');
         }
       });
     }
+  }
+
+  private setDxNumber(dxCode: DXNumber) {
+    return this.http.post<DXNumber>("/dx", { "dx_number": dxCode })
+      .pipe(
+        catchError((error: HttpErrorResponse) => {
+          if (error.error instanceof ErrorEvent) {
+            console.error('An error occurred:', error.error.message);
+          } else {
+            this.showMessage('Unknown DX barcode');
+            return throwError(() => new Error('Something bad happened; please try again later.'));
+          }
+        })
+      ).subscribe(
+        (dx: DXNumber) => this.showMessage('DX code: ' + dx.dx_number)
+      );
   }
 
   startScanDXBarcode() {
     this.imageFileInput.nativeElement.click();
   }
 
-  showSnack(text: string) {
+  private showMessage(text: string) {
     this._snackBar.open(text, undefined, {
-      duration: 1000
+      duration: this.notificationDurationMs,
     });
   }
 }

@@ -9,7 +9,10 @@ def init_ds18b20():
     def read_temp():
         with open(device_file, "r", encoding="utf-8") as f:
             lines = f.readlines()
-            status = lines[0].strip()[-3:]
+            try:
+                status = lines[0].strip()[-3:]
+            except IndexError as e:
+                raise ValueError("DS18B20 did not provide temperature") from e
             if status != "YES":
                 raise ValueError("DS18B20 is not ready")
             equals_pos = lines[1].find("t=")
