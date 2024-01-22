@@ -3,5 +3,5 @@ adafruit-circuitpython-si7021==4.1.10
 adafruit-circuitpython-ssd1306==2.12.15
 
 pyzbar==0.1.9
-Pillow==10.1.0
+Pillow==10.2.0
 picamera==1.13
