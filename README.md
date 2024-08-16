@@ -28,6 +28,9 @@ Setup your Rasperry Pi with:
 # Install pip for python 3
 sudo apt install python3-pip -y
 
+# Copy the thermometer-film folder to the Raspberry Pi
+scp -r thermometer-film pi@thermometre.local:~
+
 # Install python libraries
 cd thermometer-film
 pip3 install -r requirements.txt

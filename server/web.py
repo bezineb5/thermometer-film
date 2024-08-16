@@ -6,20 +6,27 @@ import time
 import threading
 import pathlib
 from datetime import datetime, timezone
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple, Type
 
 import board
 import busio
 
+from pydantic import BaseModel
+from pydantic_settings import (
+    BaseSettings,
+    SettingsConfigDict,
+    PydanticBaseSettingsSource,
+    JsonConfigSettingsSource,
+)
 from flask import Flask, request, abort, Response
 
 from sensors import si7021, ds18b20
 from process import development
 from utils.atomic import AtomicThreadLocalQueuesList, AtomicRef
+from utils import home_assistant_http_sensor
 
 CONFIGURATION_FILE = "./config.json"
 MEASURE_LOG_DIR = "./measurements"
-DX_NUMBER_KEY = "DX"
 DEFAULT_DX_NUMBER = "017534"
 INTERVAL_BETWEEN_MEASUREMENTS_SECONDS = 1.0
 
@@ -31,6 +38,39 @@ is_stopping = threading.Event()
 
 dev_time_db: Optional[development.DevelopmentTime] = None
 film_details = AtomicRef()
+ha_temperature_service: Optional[
+    home_assistant_http_sensor.HomeAssistantHttpSensor
+] = None
+ha_humidity_service: Optional[home_assistant_http_sensor.HomeAssistantHttpSensor] = None
+
+
+class HomeAssistantService(BaseModel):
+    entity_id: str = ""
+    device_name: str = ""
+    url: str = ""
+    token: str = ""
+
+
+class Settings(BaseSettings):
+    dx_number: str = DEFAULT_DX_NUMBER
+    home_assistant_temperature_service: HomeAssistantService = HomeAssistantService()
+    home_assistant_humidity_service: HomeAssistantService = HomeAssistantService()
+
+    model_config = SettingsConfigDict(
+        json_file=CONFIGURATION_FILE,
+        json_file_encoding="utf-8",
+    )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: Type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> Tuple[PydanticBaseSettingsSource, ...]:
+        return (JsonConfigSettingsSource(settings_cls),)
 
 
 @app.route("/")
@@ -88,7 +128,7 @@ def stream():
     return response
 
 
-def _measure_thread(air_sensor, water_sensor):
+def _measure_thread(air_sensor, water_sensor, humidity_sensor=None):
     temperature_sensors = {
         "air": air_sensor,
         "water": water_sensor,
@@ -120,12 +160,18 @@ def _measure_thread(air_sensor, water_sensor):
                 measurements = {
                     name: handler() for name, handler in temperature_sensors.items()
                 }
+                humidity_measurement = humidity_sensor() if humidity_sensor else None
                 payload = {
                     "temperatures": [
                         {"id": name, "temperature": value}
                         for name, value in measurements.items()
                     ],
                 }
+                if humidity_measurement is not None:
+                    payload["humidity"] = {
+                        "id": "air",
+                        "humidity": humidity_measurement,
+                    }
 
                 water_temp = measurements.get("water")
                 details = film_details.get()
@@ -164,6 +210,14 @@ def _measure_thread(air_sensor, water_sensor):
                 }
                 writer.writerow(csv_payload)
                 f.flush()
+
+                # Report to Home Assistant
+                if ha_temperature_service:
+                    ha_temperature_service.report_temperature(
+                        temperature_sensors["air"]()
+                    )
+                if ha_humidity_service and humidity_measurement is not None:
+                    ha_humidity_service.report_humidity(humidity_measurement)
             except:
                 log.exception("Unable to read sensors")
 
@@ -181,29 +235,60 @@ def _parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _get_last_dx_number(default: str) -> str:
-    value = default
+def _read_configuration() -> Settings:
+    return Settings()
 
-    try:
-        with open(CONFIGURATION_FILE, "r", encoding="utf-8") as f:
-            config = json.load(f)
-            if config:
-                value = config.get(DX_NUMBER_KEY, default)
-    except FileNotFoundError:
-        log.info(
-            "Configuration file '%s' not found, using default DX number",
-            CONFIGURATION_FILE,
-        )
-    return value
+
+def _get_last_dx_number(settings: Settings, default: str) -> str:
+    if settings.dx_number:
+        return settings.dx_number
+    return default
 
 
 def _save_last_dx_number(last_dx_number: str) -> None:
+    settings = _read_configuration()
+    settings.dx_number = last_dx_number
     try:
         with open(CONFIGURATION_FILE, "w", encoding="utf-8") as f:
-            data = {DX_NUMBER_KEY: last_dx_number}
+            data = settings.model_dump()
             json.dump(data, f)
     except:
         log.exception("Unable to save last DX number")
+
+
+def _is_ha_config_valid(ha_service: HomeAssistantService) -> bool:
+    return (
+        ha_service
+        and ha_service.entity_id
+        and ha_service.device_name
+        and ha_service.url
+        and ha_service.token
+    )
+
+
+def _configure_home_assistant(settings: Settings):
+    ha_temperature_settings = settings.home_assistant_temperature_service
+    if _is_ha_config_valid(ha_temperature_settings):
+        global ha_temperature_service
+        ha_temperature_service = home_assistant_http_sensor.HomeAssistantHttpSensor(
+            entity_id=ha_temperature_settings.entity_id,
+            device_name=ha_temperature_settings.device_name,
+            url=ha_temperature_settings.url,
+            token=ha_temperature_settings.token,
+        )
+        log.info(
+            "Home Assistant configuration (temperature): %s", ha_temperature_service
+        )
+    ha_humidity_settings = settings.home_assistant_humidity_service
+    if _is_ha_config_valid(ha_humidity_settings):
+        global ha_humidity_service
+        ha_humidity_service = home_assistant_http_sensor.HomeAssistantHttpSensor(
+            entity_id=ha_humidity_settings.entity_id,
+            device_name=ha_humidity_settings.device_name,
+            url=ha_humidity_settings.url,
+            token=ha_humidity_settings.token,
+        )
+        log.info("Home Assistant configuration (humidity): %s", ha_humidity_service)
 
 
 def _init_development_time_db():
@@ -217,10 +302,14 @@ def main():
     level = logging.DEBUG if args.verbose else logging.INFO
     logging.basicConfig(level=level)
 
+    # Configure Home Assistant
+    settings = _read_configuration()
+    _configure_home_assistant(settings)
+
     # Load film databases
     _init_development_time_db()
-    last_dx_number = _get_last_dx_number(DEFAULT_DX_NUMBER)
-    log.info("Initial to DX number: %s", last_dx_number)
+    last_dx_number = _get_last_dx_number(settings, DEFAULT_DX_NUMBER)
+    log.info("Initial DX number: %s", last_dx_number)
     film_details.set(dev_time_db.for_dx_number(last_dx_number))
 
     # Create the I2C bus
@@ -229,10 +318,13 @@ def main():
     # Init the sensors
     air_sensor = si7021.init_si7021(i2c)
     water_sensor = ds18b20.init_ds18b20()
+    humidity_sensor = si7021.init_si7021_humidity(i2c)
 
     # Start measuring thread
     threading.Thread(
-        target=_measure_thread, args=(air_sensor, water_sensor), daemon=False
+        target=_measure_thread,
+        args=(air_sensor, water_sensor, humidity_sensor),
+        daemon=False,
     ).start()
 
     # Web server
