@@ -74,7 +74,7 @@ export class AppComponent implements OnInit {
     },
     'error': undefined,
   };
-  isSocketOpen: boolean = false;
+  isSocketOpen = false;
 
   constructor(private _snackBar: MatSnackBar, private http: HttpClient, private ngZone: NgZone) {
   }
@@ -95,7 +95,7 @@ export class AppComponent implements OnInit {
         this.isSocketOpen = true;
       });
     };
-    evtSource.onerror = (_event) => {
+    evtSource.onerror = () => {
       this.ngZone.run(() => {
         if (this.isSocketOpen) {
           this.showMessage("Connection lost");
@@ -138,10 +138,8 @@ export class AppComponent implements OnInit {
     this.development = newDevelopment;
   }
 
-  onFileScan(e) {
-    let self = this;
-
-    if (e.target.files && e.target.files.length) {
+  onFileScan(e: Event) {
+    if (e.target instanceof HTMLInputElement && e.target.files && e.target.files.length) {
       const src = URL.createObjectURL(e.target.files[0]);
       const config = {
         src: src,
@@ -152,12 +150,12 @@ export class AppComponent implements OnInit {
         }
       };
 
-      Quagga.decodeSingle(config, function (result: ScanResult) {
+      Quagga.decodeSingle(config, (result: ScanResult) => {
         if (result && 'codeResult' in result) {
           console.log("result", result.codeResult.code);
-          self.setDxNumber(result.codeResult.code);
+          this.setDxNumber(result.codeResult.code);
         } else {
-          self.showMessage('Unrecognized DX barcode');
+          this.showMessage('Unrecognized DX barcode');
         }
       });
     }

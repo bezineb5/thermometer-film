@@ -17,7 +17,7 @@
         "build": {
           "builder": "@angular-devkit/build-angular:application",
           "options": {
-            "baseHref" : "/static/",
+            "baseHref": "/static/",
             "outputPath": {
               "base": "dist/thermometer-ui"
             },
@@ -70,7 +70,7 @@
               "sourceMap": true,
               "namedChunks": true,
               "extractLicenses": false,
-              "budgets": []          
+              "budgets": []
             }
           },
           "defaultConfiguration": "production"
@@ -115,15 +115,11 @@
           }
         },
         "lint": {
-          "builder": "@angular-devkit/build-angular:tslint",
+          "builder": "@angular-eslint/builder:lint",
           "options": {
-            "tsConfig": [
-              "tsconfig.app.json",
-              "tsconfig.spec.json",
-              "e2e/tsconfig.json"
-            ],
-            "exclude": [
-              "**/node_modules/**"
+            "lintFilePatterns": [
+              "src/**/*.ts",
+              "src/**/*.html"
             ]
           }
         },
