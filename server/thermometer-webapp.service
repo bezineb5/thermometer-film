@@ -2,8 +2,8 @@
 Description=thermometer-webapp
 
 [Service]
-ExecStart=python3 /home/pi/thermometer-film/web.py
-WorkingDirectory=/home/pi/thermometer-film
+ExecStart=/home/pi/venv/bin/python /home/pi/server/web.py
+WorkingDirectory=/home/pi/server
 StandardOutput=inherit
 StandardError=inherit
 Restart=always

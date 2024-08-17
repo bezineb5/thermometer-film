@@ -23,7 +23,7 @@ from flask import Flask, request, abort, Response
 from sensors import si7021, ds18b20
 from process import development
 from utils.atomic import AtomicThreadLocalQueuesList, AtomicRef
-from utils import home_assistant_http_sensor
+from utils import home_assistant_http_sensor, home_assistant_mqtt_device
 
 CONFIGURATION_FILE = "./config.json"
 MEASURE_LOG_DIR = "./measurements"
@@ -42,6 +42,7 @@ ha_temperature_service: Optional[
     home_assistant_http_sensor.HomeAssistantHttpSensor
 ] = None
 ha_humidity_service: Optional[home_assistant_http_sensor.HomeAssistantHttpSensor] = None
+ha_device_service: Optional[home_assistant_mqtt_device.ThermometerDevice] = None
 
 
 class HomeAssistantService(BaseModel):
@@ -51,10 +52,19 @@ class HomeAssistantService(BaseModel):
     token: str = ""
 
 
+class HomeAssistantMqttDevice(BaseModel):
+    mqtt_hostname: str = ""
+    username: str = ""
+    password: str = ""
+    device_name: str = "Pi Thermometre"
+    device_id: str = "rpi_thermometre"
+
+
 class Settings(BaseSettings):
     dx_number: str = DEFAULT_DX_NUMBER
     home_assistant_temperature_service: HomeAssistantService = HomeAssistantService()
     home_assistant_humidity_service: HomeAssistantService = HomeAssistantService()
+    home_assistant_mqtt_device: HomeAssistantMqttDevice = HomeAssistantMqttDevice()
 
     model_config = SettingsConfigDict(
         json_file=CONFIGURATION_FILE,
@@ -212,6 +222,12 @@ def _measure_thread(air_sensor, water_sensor, humidity_sensor=None):
                 f.flush()
 
                 # Report to Home Assistant
+                if ha_device_service:
+                    ha_device_service.report_measures(
+                        measurements["air"],
+                        measurements["water"],
+                        humidity_measurement,
+                    )
                 if ha_temperature_service:
                     ha_temperature_service.report_temperature(
                         temperature_sensors["air"]()
@@ -256,17 +272,42 @@ def _save_last_dx_number(last_dx_number: str) -> None:
         log.exception("Unable to save last DX number")
 
 
+def _is_ha_mqtt_config_valid(ha_mqtt_device: HomeAssistantMqttDevice) -> bool:
+    if (
+        ha_mqtt_device
+        and ha_mqtt_device.mqtt_hostname
+        and ha_mqtt_device.username
+        and ha_mqtt_device.password
+    ):
+        return True
+    return False
+
+
 def _is_ha_config_valid(ha_service: HomeAssistantService) -> bool:
-    return (
+    if (
         ha_service
         and ha_service.entity_id
         and ha_service.device_name
         and ha_service.url
         and ha_service.token
-    )
+    ):
+        return True
+    return False
 
 
 def _configure_home_assistant(settings: Settings):
+    ha_mqtt_settings = settings.home_assistant_mqtt_device
+    if _is_ha_mqtt_config_valid(ha_mqtt_settings):
+        global ha_device_service
+        ha_device_service = home_assistant_mqtt_device.ThermometerDevice(
+            mqtt_hostname=ha_mqtt_settings.mqtt_hostname,
+            username=ha_mqtt_settings.username,
+            password=ha_mqtt_settings.password,
+            device_name=ha_mqtt_settings.device_name,
+            device_id=ha_mqtt_settings.device_id,
+        )
+        log.info("Home Assistant configuration (MQTT): %s", ha_device_service)
+
     ha_temperature_settings = settings.home_assistant_temperature_service
     if _is_ha_config_valid(ha_temperature_settings):
         global ha_temperature_service

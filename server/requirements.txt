@@ -10,5 +10,5 @@ pydantic==2.8.2
 pydantic-settings==2.4.0
 
 # Remote reporting
-ha-mqtt-discoverable==0.13.1
+ha-mqtt-discoverable==0.14.0
 requests==2.32.3
