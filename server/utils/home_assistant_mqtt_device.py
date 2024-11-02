@@ -44,6 +44,7 @@ class ThermometerDevice:
             name="Air temperature",
             device_class="temperature",
             unit_of_measurement="°C",
+            state_class="measurement",
             unique_id="air_temperature_sensor",
             device=device_info,
         )
@@ -58,6 +59,7 @@ class ThermometerDevice:
             name="Air humidity",
             device_class="humidity",
             unit_of_measurement="%",
+            state_class="measurement",
             unique_id="air_humidity_sensor",
             device=device_info,
         )
@@ -72,6 +74,7 @@ class ThermometerDevice:
             name="Water temperature",
             device_class="temperature",
             unit_of_measurement="°C",
+            state_class="measurement",
             unique_id="water_temperature_sensor",
             device=device_info,
         )
