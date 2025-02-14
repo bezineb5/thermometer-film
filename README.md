@@ -72,3 +72,26 @@ EOF
 # Load the rules and make them persistent
 sudo nft -f /etc/nftables.conf
 ```
+
+## Configure Home Assistant
+Store the configuration in the `config.json` file.
+
+```bash
+# Edit the config.json file
+nano config.json
+```
+
+```json
+{
+  "home_assistant_mqtt_device": {
+    "username": "mqtt_user",
+    "password": "mqtt_password"
+  }
+}
+```
+
+## Restart the service
+
+```bash
+sudo systemctl restart thermometer-webapp.service
+```

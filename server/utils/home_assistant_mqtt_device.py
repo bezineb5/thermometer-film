@@ -19,6 +19,7 @@ class ThermometerDevice:
     def __init__(
         self,
         mqtt_hostname: str,
+        port: int,
         username: str,
         password: str,
         device_name: str,
@@ -30,7 +31,7 @@ class ThermometerDevice:
 
         # Configure the required parameters for the MQTT broker
         mqtt_settings = Settings.MQTT(
-            host=mqtt_hostname, username=username, password=password
+            host=mqtt_hostname, port=port, username=username, password=password
         )
 
         # Define the device. At least one of `identifiers` or `connections` must be supplied

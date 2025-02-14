@@ -53,7 +53,8 @@ class HomeAssistantService(BaseModel):
 
 
 class HomeAssistantMqttDevice(BaseModel):
-    mqtt_hostname: str = ""
+    mqtt_hostname: str = "homeassistant.local"
+    port: int = 1883
     username: str = ""
     password: str = ""
     device_name: str = "Pi Thermometre"
@@ -276,6 +277,7 @@ def _is_ha_mqtt_config_valid(ha_mqtt_device: HomeAssistantMqttDevice) -> bool:
     if (
         ha_mqtt_device
         and ha_mqtt_device.mqtt_hostname
+        and ha_mqtt_device.port
         and ha_mqtt_device.username
         and ha_mqtt_device.password
     ):
@@ -301,6 +303,7 @@ def _configure_home_assistant(settings: Settings):
         global ha_device_service
         ha_device_service = home_assistant_mqtt_device.ThermometerDevice(
             mqtt_hostname=ha_mqtt_settings.mqtt_hostname,
+            port=ha_mqtt_settings.port,
             username=ha_mqtt_settings.username,
             password=ha_mqtt_settings.password,
             device_name=ha_mqtt_settings.device_name,
