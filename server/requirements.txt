@@ -1,14 +1,14 @@
 # Sensors
-adafruit-circuitpython-ads1x15==2.4.1
-adafruit-circuitpython-si7021==4.1.12
+adafruit-circuitpython-ads1x15==2.4.2
+adafruit-circuitpython-si7021==4.1.14
 
 # Web server
-Flask==3.0.3
+Flask==3.1.0
 
 # Configuration
-pydantic==2.8.2
-pydantic-settings==2.4.0
+pydantic==2.10.6
+pydantic-settings==2.7.1
 
 # Remote reporting
-ha-mqtt-discoverable==0.16.0
+ha-mqtt-discoverable==0.16.4
 requests==2.32.3

@@ -24,15 +24,21 @@ Setup your Rasperry Pi with:
 * Enable 1-wire
 * Enable I2C
 
+This guide works on Debian Bookworm.
+
+## Install the server
+
 ```bash
 # Install pip for python 3
 sudo apt install python3-pip -y
 
 # Copy the thermometer-film folder to the Raspberry Pi
-scp -r thermometer-film pi@thermometre.local:~
+scp -r server pi@thermometre.local:~
 
-# Install python libraries
-cd thermometer-film
+# Install python libraries in a virtual environment
+python3 -m venv ./venv
+source ./venv/bin/activate
+cd server
 pip3 install -r requirements.txt
 
 # Run the webapp as a service
@@ -41,16 +47,28 @@ sudo cp ./thermometer-webapp.service /etc/systemd/system
 # Automatic start the service on boot
 sudo systemctl enable thermometer-webapp.service
 
-# Forward port 80 to 5000 (where the webapp listens)
-sudo iptables -t nat -I PREROUTING -p tcp --dport 80 -j REDIRECT --to-ports 5000
-sudo sh -c "mkdir -p /etc/iptables; iptables-save > /etc/iptables/rules.v4"
-```
+## Configure the firewall
 
-Then:
 ```bash
-sudo vi /etc/rc.local
-```
-And add the following before the exit:
-```bash
-iptables-restore < /etc/iptables/rules.v4
+# Forward port 80 to 5000 (where the webapp listens)
+sudo apt install nftables -y
+sudo systemctl enable nftables.service
+sudo systemctl start nftables.service
+
+# Create a new ruleset file
+sudo tee /etc/nftables.conf << 'EOF'
+#!/usr/sbin/nft -f
+
+flush ruleset
+
+table nat {
+    chain prerouting {
+        type nat hook prerouting priority -100; policy accept;
+        tcp dport 80 redirect to :5000
+    }
+}
+EOF
+
+# Load the rules and make them persistent
+sudo nft -f /etc/nftables.conf
 ```
