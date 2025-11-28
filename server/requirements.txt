@@ -3,7 +3,7 @@ adafruit-circuitpython-ads1x15==2.4.2
 adafruit-circuitpython-si7021==4.1.14
 
 # Web server
-Flask==3.1.0
+Flask==3.1.1
 
 # Configuration
 pydantic==2.10.6
